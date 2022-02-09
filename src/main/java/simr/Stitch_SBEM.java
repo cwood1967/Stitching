@@ -19,34 +19,20 @@
  * <http://www.gnu.org/licenses/gpl-2.0.html>.
  * #L%
  */
-package plugin;
+package simr;
 
-import static stitching.CommonFunctions.addHyperLinkListener;
 import fiji.util.gui.GenericDialogPlus;
 import ij.IJ;
 import ij.ImagePlus;
+import ij.gui.ImageCanvas;
 import ij.gui.MultiLineLabel;
 import ij.gui.Roi;
 import ij.gui.Toolbar;
-import ij.plugin.PlugIn;
+import ij.io.FileSaver;
 import ij.plugin.frame.RoiManager;
-
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
+import ij.process.ImageProcessor;
 import loci.common.services.ServiceFactory;
-import loci.formats.ChannelSeparator;
-import loci.formats.FormatException;
-import loci.formats.IFormatReader;
-import loci.formats.ImageReader;
-import loci.formats.MetadataTools;
+import loci.formats.*;
 import loci.formats.meta.IMetadata;
 import loci.formats.meta.MetadataRetrieve;
 import loci.formats.services.OMEXMLService;
@@ -55,44 +41,48 @@ import loci.plugins.in.ImporterOptions;
 import mpicbg.models.InvertibleBoundable;
 import mpicbg.models.TranslationModel2D;
 import mpicbg.models.TranslationModel3D;
-import mpicbg.stitching.CollectionStitchingImgLib;
-import mpicbg.stitching.Downsampler;
-import mpicbg.stitching.ImageCollectionElement;
-import mpicbg.stitching.ImagePlusTimePoint;
-import mpicbg.stitching.StitchingParameters;
-import mpicbg.stitching.TextFileAccess;
+import mpicbg.stitching.*;
 import mpicbg.stitching.fusion.Fusion;
 import net.imglib2.type.numeric.integer.UnsignedByteType;
 import net.imglib2.type.numeric.integer.UnsignedShortType;
 import net.imglib2.type.numeric.real.FloatType;
 import ome.units.quantity.Length;
+import plugin.GridType;
 import stitching.CommonFunctions;
 import stitching.utils.Log;
 import tools.RoiPicker;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.*;
+
+import static stitching.CommonFunctions.addHyperLinkListener;
 
 /**
  * 
  * @author Stephan Preibisch (stephan.preibisch@gmx.de)
  *
  */
-public class Stitching_Grid
+public class Stitch_SBEM
 {
 	final public static String version = "1.2";
 	final private String myURL = "http://fly.mpi-cbg.de/preibisch";
-	
+
 	public static boolean seperateOverlapY = false;
-	
+
 	public static int defaultGridChoice1 = 0;
 	public static int defaultGridChoice2 = 0;
 
 	public static int defaultGridSizeX = 2, defaultGridSizeY = 3;
 	public static double defaultOverlapX = 20;
 	public static double defaultOverlapY = 20;
-	
+
 	public static String defaultDirectory = "";
 	public static String defaultSeriesFile = "";
 	public static boolean defaultConfirmFiles = true;
-	
+
 	public static String defaultFileNames = "tile_{ii}.tif";
 	public static String defaultTileConfiguration = "TileConfiguration.txt";
 	public static boolean defaultAddTilesAsRois = false;
@@ -104,254 +94,104 @@ public class Stitching_Grid
 	public static boolean defaultDownSample = false;
 	public static boolean defaultDisplayFusion = false;
 	public static boolean writeOnlyTileConfStatic = false;
-	
+
 	public static boolean defaultIgnoreCalibration = false;
 	public static double defaultIncreaseOverlap = 0;
 	public static boolean defaultVirtualInput = false;
-	
+
 	public static int defaultStartI = 1;
 	public static int defaultStartX = 1;
 	public static int defaultStartY = 1;
 	public static int defaultFusionMethod = 0;
 	public static double defaultR = 0.3;
 	public static double defaultRegressionThreshold = 0.3;
-	public static double defaultDisplacementThresholdRelative = 2.5;		
-	public static double defaultDisplacementThresholdAbsolute = 3.5;		
+	public static double defaultDisplacementThresholdRelative = 2.5;
+	public static double defaultDisplacementThresholdAbsolute = 3.5;
 	public static boolean defaultOnlyPreview = false;
 	public static int defaultMemorySpeedChoice = 0;
-	
+
 	//Added by John Lapage: user sets this parameter to define how many adjacent files each image will be compared to
-	public static double defaultSeqRange = 1;	
-	
+	public static double defaultSeqRange = 1;
+
 	public static boolean defaultQuickFusion = true;
-	
+
 	public static String[] resultChoices = { "Fuse and display", "Write to disk" };
 	public static int defaultResult = 0;
 	public static String defaultOutputDirectory = "";
 
+	public File outfile;
 	public static void main(String[] args) {
 
+		String[] imagenames = {
+				"/Users/cjw/Desktop/tiles02/smaller/20220107_MER_IMARE-110171_19_55_48hpa_C4_g0001_t0004_s02282.tif",
+				"/Users/cjw/Desktop/tiles02/smaller/20220107_MER_IMARE-110171_19_55_48hpa_C4_g0001_t0005_s02282.tif",
+				"/Users/cjw/Desktop/tiles02/smaller/20220107_MER_IMARE-110171_19_55_48hpa_C4_g0001_t0006_s02282.tif",
+				"/Users/cjw/Desktop/tiles02/smaller/20220107_MER_IMARE-110171_19_55_48hpa_C4_g0001_t0008_s02282.tif",
+				"/Users/cjw/Desktop/tiles02/smaller/20220107_MER_IMARE-110171_19_55_48hpa_C4_g0001_t0009_s02282.tif",
+				"/Users/cjw/Desktop/tiles02/smaller/20220107_MER_IMARE-110171_19_55_48hpa_C4_g0001_t0010_s02282.tif",
+		};
+
+		float[][] offsets = {
+				{0, 0},
+				{5944/8, 0},
+				{11088/8, 0},
+				{0, 4408/8},
+				{5944/8, 4408/8},
+				{11088/8, 4408/8}
+		};
+
+		Stitch_SBEM sbem = new Stitch_SBEM();
+		sbem.run(imagenames, offsets, "/Users/cjw/Desktop/tiles02/smaller");
 	}
-	public void run( String arg0 ) 
+
+	public void run( String[] imagenames, float[][] offsets, String xdir)
 	{
-		Log.info( "Stitching internal version: " + Stitching_Grid.version );
+		Log.info( "Stitching internal version: " + Stitch_SBEM.version );
+		outfile = new File("/Users/cjw/Desktop", "newstitch.tif");
 
-		final GridType grid = new GridType();
-		
-		final int gridType = grid.getType();
-		final int gridOrder = grid.getOrder();
-				
-		if ( gridType == -1 || gridOrder == -1 )
-			return;
-
-		final GenericDialogPlus gd = new GenericDialogPlus( "Grid stitching: " + GridType.choose1[ gridType ] + ", " + GridType.choose2[ gridType ][ gridOrder ] );
-
-		if ( gridType < 5 )
-		{
-			gd.addNumericField( "Grid_size_x", defaultGridSizeX, 0 );
-			gd.addNumericField( "Grid_size_y", defaultGridSizeY, 0 );
-			
-			if ( seperateOverlapY )
-			{
-				gd.addSlider( "Tile_overlap_x [%]", 0, 100, defaultOverlapX );
-				gd.addSlider( "Tile_overlap_y [%]", 0, 100, defaultOverlapY );				
-			}
-			else
-			{
-				gd.addSlider( "Tile_overlap [%]", 0, 100, defaultOverlapX );
-			}
-			
-			// row-by-row, column-by-column or snake
-			// needs the same questions
-			if ( grid.getType() < 4 )
-			{
-				gd.addNumericField( "First_file_index_i", defaultStartI, 0 );
-			}
-			else
-			{
-				gd.addNumericField( "First_file_index_x", defaultStartX, 0 );
-				gd.addNumericField( "First_file_index_y", defaultStartY, 0 );
-			}
-		}
-		
-		if ( gridType == 6 && gridOrder == 1 )
-		{
-			gd.addFileField( "Multi_series_file", defaultSeriesFile, 50 );
-		}
-		else
-		{
-			gd.addDirectoryField( "Directory", defaultDirectory, 50 );
-		
-			// Modified by John Lapage: copying the general setup for Unknown Positions option 
-			if ( gridType == 5 || gridType == 7)
-				gd.addCheckbox( "Confirm_files", defaultConfirmFiles );
-			
-			if ( gridType < 5 )			
-				gd.addStringField( "File_names for tiles", defaultFileNames, 50 );
-			
-			if ( gridType == 6 )
-				gd.addStringField( "Layout_file", defaultTileConfiguration, 50 );
-			else
-				gd.addStringField( "Output_textfile_name", defaultTileConfiguration, 50 );
-		}
-		
-		gd.addChoice( "Fusion_method", CommonFunctions.fusionMethodListGrid, CommonFunctions.fusionMethodListGrid[ defaultFusionMethod ] );
-		gd.addNumericField( "Regression_threshold", defaultRegressionThreshold, 2 );
-		gd.addNumericField( "Max/avg_displacement_threshold", defaultDisplacementThresholdRelative, 2 );		
-		gd.addNumericField( "Absolute_displacement_threshold", defaultDisplacementThresholdAbsolute, 2 );
-		// added by John Lapage: creates text box in which the user can set which range to compare within. Would be nicer as an Integer.
-		if (gridType == 7) 
-			gd.addNumericField( "Frame range to compare", defaultSeqRange, 0 );
-		gd.addCheckbox("Add_tiles_as_ROIs", defaultAddTilesAsRois);
-		if ( gridType < 5 )
-			gd.addCheckbox( "Compute_overlap (otherwise use approximate grid coordinates)", defaultComputeOverlap );
-		else if ( gridType == 6 && gridOrder == 0 )
-			gd.addCheckbox( "Compute_overlap (otherwise apply coordinates from layout file)", defaultComputeOverlap );
-		else if ( gridType == 6 && gridOrder == 1 )
-		{
-			gd.addCheckbox( "Compute_overlap (otherwise trust coordinates in the file)", defaultComputeOverlap );
-			gd.addCheckbox( "Ignore_Calibration", defaultIgnoreCalibration );
-			gd.addSlider( "Increase_overlap [%]", 0, 100, defaultIncreaseOverlap );
-		}
-		
-		gd.addCheckbox( "Invert_X coordinates", defaultInvertX );
-		gd.addCheckbox( "Invert_Y coordinates", defaultInvertY );
-		gd.addCheckbox( "Ignore_Z_stage position", defaultIgnoreZStage);
-		gd.addCheckbox( "Subpixel_accuracy", defaultSubpixelAccuracy );
-		gd.addCheckbox( "Downsample_tiles", defaultDownSample);
-		gd.addCheckbox( "Display_fusion", defaultDisplayFusion);
-		gd.addCheckbox( "Use_virtual_input_images (Slow! Even slower when combined with subpixel accuracy during fusion!)", defaultVirtualInput );
-		gd.addChoice( "Computation_parameters", CommonFunctions.cpuMemSelect, CommonFunctions.cpuMemSelect[ defaultMemorySpeedChoice ] );
-		gd.addChoice( "Image_output", resultChoices, resultChoices[ defaultResult ] );
-		gd.addMessage("");
-		gd.addMessage( "This Plugin is developed by Stephan Preibisch\n" + myURL);
-
-		MultiLineLabel text = (MultiLineLabel) gd.getMessage();
-		addHyperLinkListener(text, myURL);
-
-		gd.showDialog();
-		
-		if ( gd.wasCanceled() )
-			return;
-		
-		// the general stitching parameters
 		final StitchingParameters params = new StitchingParameters();
-		
-		final int gridSizeX, gridSizeY;
-		double overlapX, overlapY;
-		int startI = 0, startX = 0, startY = 0;
-		
-		if ( gridType < 5 )
-		{
-			gridSizeX = defaultGridSizeX = (int)Math.round(gd.getNextNumber());
-			gridSizeY = defaultGridSizeY = (int)Math.round(gd.getNextNumber());
-			
-			if ( seperateOverlapY )
-			{
-				overlapX = defaultOverlapX = gd.getNextNumber();
-				overlapX /= 100.0;				
-				overlapY = defaultOverlapY = gd.getNextNumber();
-				overlapY /= 100.0;				
-				
-			}
-			else
-			{
-				overlapX = overlapY = defaultOverlapY = defaultOverlapX = gd.getNextNumber();
-				overlapX /= 100.0;
-				overlapY = overlapX;
-			}
-	
-			// row-by-row, column-by-column or snake
-			// needs the same questions
-			if ( grid.getType() < 4 )
-			{
-				startI = defaultStartI = (int)Math.round(gd.getNextNumber());
-			}
-			else // position
-			{
-				startX = defaultStartI = (int)Math.round(gd.getNextNumber());
-				startY = defaultStartI = (int)Math.round(gd.getNextNumber());			
-			}
-		}
-		else
-		{
-			gridSizeX = gridSizeY = 0;
-			overlapX = overlapY = 0;
-		}
-		
-		String directory, outputFile, seriesFile;
-		final boolean confirmFiles;
+
+		String directory = xdir;
+		String  outputFile = "";
+		String seriesFile = "";
 		final String filenames;
+		final boolean confirmFiles;
+
+		seriesFile = defaultSeriesFile;
+		outputFile = defaultTileConfiguration;
+		// derive directory from the file (the dialog doesn't provide one)
+		//directory = seriesFile.trim();
+//		directory = directory.replace('\\', '/');
+//		directory = directory.split("/[^/]*$")[0];  // remove the file part
+		filenames = null;
+		confirmFiles = false;
+
 		
-		if ( gridType == 6 && gridOrder == 1 )
-		// "Positions from file" + "Defined by metadata"
-		{
-			seriesFile = defaultSeriesFile = gd.getNextString();
-			outputFile = defaultTileConfiguration;
-			// derive directory from the file (the dialog doesn't provide one)
-			directory = seriesFile.trim();
-			directory = directory.replace('\\', '/');
-			directory = directory.split("/[^/]*$")[0];  // remove the file part
-			filenames = null;
-			confirmFiles = false;
-		}
-		else
-		{
-			directory = defaultDirectory = gd.getNextString();
-			seriesFile = null;
-				
-			// Modified by John Lapage: copying the general setup for Unknown Positions option 
-			if ( gridType == 5 || gridType == 7)
-				confirmFiles = defaultConfirmFiles = gd.getNextBoolean();
-			else
-				confirmFiles = false;
-			
-			if ( gridType < 5 )
-				filenames = defaultFileNames = gd.getNextString();
-			else
-				filenames = "";
-	
-			outputFile = defaultTileConfiguration = gd.getNextString();
-		}
+		params.fusionMethod = defaultFusionMethod;
+		params.regThreshold = defaultRegressionThreshold;
+		params.relativeThreshold = defaultDisplacementThresholdRelative;
+		params.absoluteThreshold = defaultDisplacementThresholdAbsolute;
+
 		
-		params.fusionMethod = defaultFusionMethod = gd.getNextChoiceIndex();
-		params.regThreshold = defaultRegressionThreshold = gd.getNextNumber();
-		params.relativeThreshold = defaultDisplacementThresholdRelative = gd.getNextNumber();		
-		params.absoluteThreshold = defaultDisplacementThresholdAbsolute = gd.getNextNumber();
-		// Added by John Lapage: sends user specified range to the parameters object
-		if ( gridType == 7) 
-			params.seqRange = (int)(defaultSeqRange = Math.round( gd.getNextNumber() ) );
-		
-		final boolean addTilesAsRois = params.addTilesAsRois = defaultAddTilesAsRois = gd.getNextBoolean();
+		final boolean addTilesAsRois = params.addTilesAsRois = defaultAddTilesAsRois;
 		// Modified by John Lapage (rearranged). Copies the setup for Unknown Positions. User specifies this with all other options.
-		if ( gridType == 5 || gridType == 7)
-			params.computeOverlap = true;
-		else 
-			params.computeOverlap = defaultComputeOverlap = gd.getNextBoolean();
+		params.computeOverlap = defaultComputeOverlap;
 
 		final double increaseOverlap;
 		final boolean ignoreCalibration;
-		if ( gridType == 6 && gridOrder == 1 )
-		{
-			ignoreCalibration = defaultIgnoreCalibration = gd.getNextBoolean();
-			increaseOverlap = defaultIncreaseOverlap = gd.getNextNumber();
-		}
-		else
-		{
-			ignoreCalibration = false;
-			increaseOverlap = 0;
-		}
-		
-		final boolean invertX = params.invertX = defaultInvertX = gd.getNextBoolean();
-		final boolean invertY = params.invertY = defaultInvertY = gd.getNextBoolean();
-		final boolean ignoreZStage = params.ignoreZStage = defaultIgnoreZStage = gd.getNextBoolean();
+		ignoreCalibration = defaultIgnoreCalibration;
+		increaseOverlap = defaultIncreaseOverlap;
 
-		params.subpixelAccuracy = defaultSubpixelAccuracy = gd.getNextBoolean();
-		final boolean downSample = params.downSample = defaultDownSample = gd.getNextBoolean();
-		params.displayFusion = defaultDisplayFusion = gd.getNextBoolean();
-		params.virtual = defaultVirtualInput = gd.getNextBoolean();
-		params.cpuMemChoice = defaultMemorySpeedChoice = gd.getNextChoiceIndex();
-		params.outputVariant = defaultResult = gd.getNextChoiceIndex();
+		final boolean invertX = params.invertX = defaultInvertX;
+		final boolean invertY = params.invertY = defaultInvertY;
+		final boolean ignoreZStage = params.ignoreZStage = defaultIgnoreZStage;
+
+		params.subpixelAccuracy = defaultSubpixelAccuracy;
+		final boolean downSample = params.downSample = defaultDownSample;
+		params.displayFusion = defaultDisplayFusion;
+		params.virtual = defaultVirtualInput;
+		params.cpuMemChoice = defaultMemorySpeedChoice;
+		params.outputVariant = defaultResult;
 		
 		if ( params.virtual )
 		{
@@ -363,25 +203,6 @@ public class Stitching_Grid
 			}
 		}
 		
-		if ( params.fusionMethod != CommonFunctions.fusionMethodListGrid.length - 1 && params.outputVariant == 1 )
-		{
-			if ( defaultOutputDirectory == null || defaultOutputDirectory.length() == 0 )
-				defaultOutputDirectory = defaultDirectory;
-			
-			final GenericDialogPlus gd2 = new GenericDialogPlus( "Select output directory" );
-			gd2.addDirectoryField( "Output_directory", defaultOutputDirectory, 60 );
-			gd2.showDialog();
-			
-			if ( gd2.wasCanceled() )
-				return;
-			
-			params.outputDirectory = defaultOutputDirectory = gd2.getNextString();
-		}
-		else
-		{
-			params.outputDirectory = null;
-		}
-
 		final long startTime = System.currentTimeMillis();
 		
 		// we need to set this
@@ -389,38 +210,14 @@ public class Stitching_Grid
 		params.channel2 = 0;
 		params.timeSelect = 0;
 		params.checkPeaks = 5;
-				
-		//added by John Lapage: sets the parameters object to recognise that Sequential File pairing should be performed
-		if ( gridType == 7) params.sequential=true;
-				
-		// for reading in writing the tileconfiguration file
-		if ( ! (gridType == 6 && gridOrder == 1 ) )
-		{		
-			directory = directory.replace('\\', '/');
-			directory = directory.trim();
-			if (directory.length() > 0 && !directory.endsWith("/"))
-				directory = directory + "/";
-		}
-		
+
 		// get all imagecollectionelements
 		final ArrayList< ImageCollectionElement > elements;
 		
 		Downsampler ds = null;
-		if ( downSample && !( gridType == 5 || gridType == 7) ) ds = new Downsampler();
-		
-		if ( gridType < 5 )
-			elements = getGridLayout( grid, gridSizeX, gridSizeY, overlapX, overlapY, directory, filenames, startI, startX, startY, params.virtual, ds );
-		//John Lapage modified this: copying setup for Unknown Positions
-		else if ( gridType == 5 || gridType == 7)
-			elements = getAllFilesInDirectory( directory, confirmFiles );
-		else if ( gridType == 6 && gridOrder == 1 )  // positions from file metadata
-			elements = getLayoutFromMultiSeriesFile( seriesFile, increaseOverlap,
-				ignoreCalibration, invertX, invertY, ignoreZStage, ds );
-		else if ( gridType == 6 )  // positions from tile configuration file
-			elements = getLayoutFromFile( directory, outputFile, ds );
-		else
-			elements = null;
-		
+
+		elements = getLayoutFromArray(imagenames, offsets);
+
 		if ( elements == null )
 		{
 			Log.error("Error during tile discovery, or invalid grid type. Aborting.");
@@ -437,20 +234,11 @@ public class Stitching_Grid
 		int numChannels = -1;
 		int numTimePoints = -1;
 		
-		boolean is2d = false;
+		boolean is2d = true;
 		boolean is3d = false;
 		
 		for ( final ImageCollectionElement element : elements )
 		{
-			if ( gridType >=5 )
-			{
-				if ( params.virtual )
-					Log.info( "Opening VIRTUAL: " + element.getFile().getAbsolutePath() + " ... " );
-				else
-					Log.info( "Loading: " + element.getFile().getAbsolutePath() + " ... " );
-			}
-				
-			
 			long time = System.currentTimeMillis();
 			final ImagePlus imp = element.open( params.virtual );
 			
@@ -459,68 +247,14 @@ public class Stitching_Grid
 			if ( imp == null )
 				return;
 			
-			if (downSample && ( gridType == 5 || gridType == 7)) {
-				if (ds == null) {
-					ds = new Downsampler();
-					ds.getInput(imp.getWidth(), imp.getHeight());
-				}
-				ds.run(imp);
-			}
-			
 			int lastNumChannels = numChannels;
 			int lastNumTimePoints = numTimePoints;
 			numChannels = imp.getNChannels();
 			numTimePoints = imp.getNFrames();
-			
-			if ( imp.getNSlices() > 1 )
-			{
-				if ( gridType >=5 )
-					Log.info( "" + imp.getWidth() + "x" + imp.getHeight() + "x" + imp.getNSlices() + "px, channels=" + numChannels + ", timepoints=" + numTimePoints + " (" + time + " ms)" );
-				is3d = true;					
-			}
-			else
-			{
-				if ( gridType >=5 )
-					Log.info( "" + imp.getWidth() + "x" + imp.getHeight() + "px, channels=" + numChannels + ", timepoints=" + numTimePoints + " (" + time + " ms)" );
-				is2d = true;
-			}
-			
-			// test validity of images
-			if ( is2d && is3d )
-			{
-				Log.error( "Some images are 2d, some are 3d ... cannot proceed" );
-				return;
-			}
-			
-			if ( ( lastNumChannels != numChannels ) && lastNumChannels != -1 )
-			{
-				Log.error( "Number of channels per image changes ... cannot proceed" );
-				return;					
-			}
 
-			if ( ( lastNumTimePoints != numTimePoints ) && lastNumTimePoints != -1 )
-			{
-				Log.error( "Number of timepoints per image changes ... cannot proceed" );
-				return;					
-			}
-			
-		// John Lapage changed this: copying setup for Unknown Positions
-		if ( gridType == 5 || gridType == 7)
-			{
-				if ( is2d )
-				{
-					element.setDimensionality( 2 );
-            		element.setModel( new TranslationModel2D() );
-            		element.setOffset( new float[]{ 0, 0 } );
-				}
-				else
-				{
-					element.setDimensionality( 3 );
-            		element.setModel( new TranslationModel3D() );
-            		element.setOffset( new float[]{ 0, 0, 0 } );
-				}
-				
-			}
+			is2d = true;
+
+
 		}
 		
 		// the dimensionality of each image that will be correlated (might still have more channels or timepoints)
@@ -534,9 +268,7 @@ public class Stitching_Grid
 		params.dimensionality = dimensionality;
     	
     	// write the initial tileconfiguration
-    	if ( gridType != 6 )
-    		writeTileConfiguration( new File( directory, outputFile ), elements );
-    	    	
+
     	// call the final stitching
     	final ArrayList<ImagePlusTimePoint> optimized = CollectionStitchingImgLib.stitchCollection( elements, params );
     	
@@ -601,23 +333,7 @@ public class Stitching_Grid
 			// test if there is no overlap between any of the tiles
 			// if so fusion can be much faster
 			boolean noOverlap = false;
-			if ( overlapX == 0 && overlapY == 0 && params.computeOverlap == false && params.subpixelAccuracy == false && grid.getType() < 4 )
-			{
-				final GenericDialogPlus gd3 = new GenericDialogPlus( "Use fast fusion algorithm" );
-				gd3.addMessage( "There seems to be no overlap between any of the tiles." );
-				gd3.addCheckbox( "Use fast fusion?", defaultQuickFusion );
-				
-				gd3.showDialog();
-				
-				if ( gd3.wasCanceled() )
-					return;
-				
-				noOverlap = defaultQuickFusion = gd3.getNextBoolean();
-				
-				if ( noOverlap )
-					Log.info( "There is no overlap between any of the tiles, using faster fusion algorithm." );
-			}
-			
+
 			if ( is32bit )
 				imp = Fusion.fuse( new FloatType(), images, models, params.dimensionality, params.subpixelAccuracy, params.fusionMethod, params.outputDirectory, noOverlap, false, params.displayFusion );
 			else if ( is16bit )
@@ -633,7 +349,15 @@ public class Stitching_Grid
 			if ( imp != null )
 			{
 				imp.setTitle( "Fused" );
-				imp.show();
+				ImageProcessor ip = imp.getProcessor().createProcessor(18300, 9200);
+				ip.setColor(0);
+				ip.fill();
+				ip.insert(imp.getProcessor(), 0,0);
+				imp.setProcessor(ip);
+				//imp.show();
+				final FileSaver fs = new FileSaver(imp);
+
+				fs.saveAsTiff(outfile.getAbsolutePath());
 			}
 
 			if (addTilesAsRois) {
@@ -1038,7 +762,27 @@ public class Stitching_Grid
 
 		return elements;
 	}	
-	
+
+	protected ArrayList< ImageCollectionElement > getLayoutFromArray(final String[] imagenames, float[][] offsets)
+	{
+
+		ArrayList< ImageCollectionElement > elements = new ArrayList<>();
+		int index = 0;
+		int dim = 2;
+		for (int i = 0; i < imagenames.length; i++) {
+		    String imageName = imagenames[i];
+			ImageCollectionElement element = new ImageCollectionElement(
+					new File(imageName), index++);
+			element.setDimensionality(dim);
+			if (dim == 3)
+				element.setModel(new TranslationModel3D());
+			else
+				element.setModel(new TranslationModel2D());
+			element.setOffset(offsets[i]);
+			elements.add(element);
+		}
+		return elements;
+	}
 	protected ArrayList< ImageCollectionElement > getLayoutFromFile( final String directory, final String layoutFile, final Downsampler ds )
 	{
 		final ArrayList< ImageCollectionElement > elements = new ArrayList< ImageCollectionElement >();
