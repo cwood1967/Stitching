@@ -120,53 +120,28 @@ public class Stitch_SBEM
 	public static String defaultOutputDirectory = "";
 
 	public File outfile;
-	public static void main(String[] args) {
 
-		String[] imagenames = {
-				"/Users/cjw/Desktop/tiles02/smaller/20220107_MER_IMARE-110171_19_55_48hpa_C4_g0001_t0004_s02282.tif",
-				"/Users/cjw/Desktop/tiles02/smaller/20220107_MER_IMARE-110171_19_55_48hpa_C4_g0001_t0005_s02282.tif",
-				"/Users/cjw/Desktop/tiles02/smaller/20220107_MER_IMARE-110171_19_55_48hpa_C4_g0001_t0006_s02282.tif",
-				"/Users/cjw/Desktop/tiles02/smaller/20220107_MER_IMARE-110171_19_55_48hpa_C4_g0001_t0008_s02282.tif",
-				"/Users/cjw/Desktop/tiles02/smaller/20220107_MER_IMARE-110171_19_55_48hpa_C4_g0001_t0009_s02282.tif",
-				"/Users/cjw/Desktop/tiles02/smaller/20220107_MER_IMARE-110171_19_55_48hpa_C4_g0001_t0010_s02282.tif",
-		};
+	HashMap<Integer, String>  fileMap= null;
+	Config config = null;
 
-		float[][] offsets = {
-				{0, 0},
-				{5944/8, 0},
-				{11088/8, 0},
-				{0, 4408/8},
-				{5944/8, 4408/8},
-				{11088/8, 4408/8}
-		};
 
-		Stitch_SBEM sbem = new Stitch_SBEM();
-		sbem.run(imagenames, offsets, "/Users/cjw/Desktop/tiles02/smaller");
-	}
-
-	public void run( String[] imagenames, float[][] offsets, String xdir)
+	public void run( int z, HashMap<Integer, String>  fileMap, Config config, String xdir)
 	{
+		this.fileMap = fileMap;
+		this.config = config;
 		Log.info( "Stitching internal version: " + Stitch_SBEM.version );
-		outfile = new File("/Users/cjw/Desktop", "newstitch.tif");
+		String outname = "stack_" + String.format("%04d", z);
+		outfile = new File(xdir, outname);
 
 		final StitchingParameters params = new StitchingParameters();
 
 		String directory = xdir;
 		String  outputFile = "";
-		String seriesFile = "";
 		final String filenames;
 		final boolean confirmFiles;
 
-		seriesFile = defaultSeriesFile;
 		outputFile = defaultTileConfiguration;
-		// derive directory from the file (the dialog doesn't provide one)
-		//directory = seriesFile.trim();
-//		directory = directory.replace('\\', '/');
-//		directory = directory.split("/[^/]*$")[0];  // remove the file part
-		filenames = null;
-		confirmFiles = false;
 
-		
 		params.fusionMethod = defaultFusionMethod;
 		params.regThreshold = defaultRegressionThreshold;
 		params.relativeThreshold = defaultDisplacementThresholdRelative;
@@ -179,8 +154,6 @@ public class Stitch_SBEM
 
 		final double increaseOverlap;
 		final boolean ignoreCalibration;
-		ignoreCalibration = defaultIgnoreCalibration;
-		increaseOverlap = defaultIncreaseOverlap;
 
 		final boolean invertX = params.invertX = defaultInvertX;
 		final boolean invertY = params.invertY = defaultInvertY;
@@ -215,8 +188,8 @@ public class Stitch_SBEM
 		final ArrayList< ImageCollectionElement > elements;
 		
 		Downsampler ds = null;
-
-		elements = getLayoutFromArray(imagenames, offsets);
+		elements = getLayoutFromMap();
+//		elements = getLayoutFromArray(imagenames, offsets);
 
 		if ( elements == null )
 		{
@@ -761,8 +734,35 @@ public class Stitch_SBEM
 		}
 
 		return elements;
-	}	
+	}
 
+	protected ArrayList< ImageCollectionElement > getLayoutFromMap()
+	{
+
+		ArrayList< ImageCollectionElement > elements = new ArrayList<>();
+		int index = 0;
+		int dim = 2;
+
+		for (Map.Entry<Integer, String> entry : fileMap.entrySet()) {
+			int tile = entry.getKey();
+			String imageName = entry.getValue();
+			ImageCollectionElement element = new ImageCollectionElement(
+					new File(imageName), index++);
+			element.setDimensionality(dim);
+
+			if (dim == 3)
+				element.setModel(new TranslationModel3D());
+			else
+				element.setModel(new TranslationModel2D());
+
+			float offX = config.getOffsetX(tile);
+			float offY = config.getOffsetY(tile);
+			float[] offsets = new float[] { offX, offY };
+			element.setOffset(offsets);
+			elements.add(element);
+		}
+		return elements;
+	}
 	protected ArrayList< ImageCollectionElement > getLayoutFromArray(final String[] imagenames, float[][] offsets)
 	{
 
