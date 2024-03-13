@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Chris"
+  given-names: "Wood"
+title: "Stitching SBEMImage Tiles"
+version: 0.1
+date-released: 2024-03-13
+url: "https://github.com/cwood1967/Stitching-SBEM"
