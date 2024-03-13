@@ -1,4 +1,17 @@
-[![](https://github.com/fiji/Stitching/actions/workflows/build-main.yml/badge.svg)](https://github.com/fiji/Stitching/actions/workflows/build-main.yml)
+
+This repository is based on the Fiji Stitching plugins developed by Stephan
+Preibisch. Details of the original software and publication can be found in
+the links here: 
+
+For further details, please see the:
+- documentation http://fiji.sc/Stitching
+- publication: http://bioinformatics.oxfordjournals.org/content/25/11/1463.abstract
+
+The modications here implement the software by running java with the -jar option
+and specifying a directory of image tiles produced by
+[SBEMImage](https://github.com/SBEMimage) as a command line argument.
+
+---
 
 Stitching
 =========

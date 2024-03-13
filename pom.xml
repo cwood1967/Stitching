@@ -10,18 +10,18 @@
         <relativePath/>
     </parent>
 
-    <groupId>sc.fiji</groupId>
-    <artifactId>Stitching_</artifactId>
-    <version>3.1.9-SNAPSHOT</version>
+    <groupId>org.stowers</groupId>
+    <artifactId>Stitching_SBEM</artifactId>
+    <version>0.1-SNAPSHOT</version>
 
-    <name>Stitching</name>
-    <description>A plugin for reconstructing big images/stacks from an arbitrary number of tiled input images/stacks.
+    <name>Stitching_SBEM</name>
+    <description>A plugin for reconstructing big images/stacks of image tiles acquired with SBEMImage 
     </description>
-    <url>https://imagej.net/Stitching</url>
-    <inceptionYear>2007</inceptionYear>
+    <url>https://github.com/cwood1967/Stitching</url>
+    <inceptionYear>2021</inceptionYear>
     <organization>
-        <name>Fiji</name>
-        <url>http://fiji.sc/</url>
+        <name>Stowers Institute</name>
+        <url>http://www.stowers.org</url>
     </organization>
     <licenses>
         <license>
@@ -31,6 +31,11 @@
         </license>
     </licenses>
     <developers>
+        <developer>
+            <id>ChrisWood</id>
+            <name> Chris Wood</name>
+            <url>https://github.com/cwood1967</url>
+        </developer>
         <developer>
             <id>StephanPreibisch</id>
             <name>Stephan Preibisch</name>
@@ -111,28 +116,12 @@
         </mailingList>
     </mailingLists>
 
-    <scm>
-        <connection>scm:git:https://github.com/fiji/Stitching</connection>
-        <developerConnection>scm:git:git@github.com:fiji/Stitching</developerConnection>
-        <tag>HEAD</tag>
-        <url>https://github.com/fiji/Stitching</url>
-    </scm>
-    <issueManagement>
-        <system>GitHub Issues</system>
-        <url>https://github.com/fiji/Stitching/issues</url>
-    </issueManagement>
-    <ciManagement>
-        <system>GitHub Actions</system>
-        <url>https://github.com/fiji/Stitching/actions</url>
-    </ciManagement>
 
     <properties>
         <main-class>simr.Main</main-class>
         <license.licenseName>gpl_v2</license.licenseName>
-        <license.copyrightOwners>Fiji developers.</license.copyrightOwners>
-        <license.projectName>Fiji distribution of ImageJ for the life sciences.</license.projectName>
+        <license.copyrightOwners>Chris Wood</license.copyrightOwners>
         <!-- NB: Deploy releases to the SciJava Maven repository. -->
-        <releaseProfiles>sign,deploy-to-scijava</releaseProfiles>
     </properties>
 
     <repositories>
