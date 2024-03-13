@@ -143,7 +143,7 @@ public class Stitch_SBEM
 		outputFile = defaultTileConfiguration;
 
 		params.fusionMethod = defaultFusionMethod;
-		params.regThreshold = defaultRegressionThreshold;
+		params.regThreshold = .01; //defaultRegressionThreshold;
 		params.relativeThreshold = defaultDisplacementThresholdRelative;
 		params.absoluteThreshold = defaultDisplacementThresholdAbsolute;
 
@@ -210,6 +210,8 @@ public class Stitch_SBEM
 		boolean is2d = true;
 		boolean is3d = false;
 		
+		int tile_width = 0;
+		int tile_height = 0;
 		for ( final ImageCollectionElement element : elements )
 		{
 			long time = System.currentTimeMillis();
@@ -220,6 +222,12 @@ public class Stitch_SBEM
 			if ( imp == null )
 				return;
 			
+			if (imp.getWidth() > tile_width) {
+				tile_width= imp.getWidth();
+			}	
+			if (imp.getHeight() > tile_height) {
+				tile_height = imp.getHeight();
+			}	
 			int lastNumChannels = numChannels;
 			int lastNumTimePoints = numTimePoints;
 			numChannels = imp.getNChannels();
@@ -318,19 +326,25 @@ public class Stitch_SBEM
 			
 			Log.info( "Finished fusion (" + (System.currentTimeMillis() - time) + " ms)");
 			Log.info( "Finished ... (" + (System.currentTimeMillis() - startTime) + " ms)");
-			
+		
 			if ( imp != null )
 			{
 				imp.setTitle( "Fused" );
-				ImageProcessor ip = imp.getProcessor().createProcessor(18300, 9200);
+				Log.info("Config: " + config.nx + " " + config.ny);
+				int xskip = (int)(300*((config.nx - 1)/2.));
+				int yskip = (int)(300*((config.ny - 1)/2.));
+				int w = config.nx*tile_width- xskip;
+				int h = config.ny*tile_height - yskip;
+				ImageProcessor ip = imp.getProcessor().createProcessor(w, h);
 				ip.setColor(0);
 				ip.fill();
 				ip.insert(imp.getProcessor(), 0,0);
 				imp.setProcessor(ip);
+				Log.info("Config imp: " + imp.getWidth() + " " + imp.getHeight());
 				//imp.show();
 				final FileSaver fs = new FileSaver(imp);
-
-				fs.saveAsTiff(outfile.getAbsolutePath());
+				
+				fs.saveAsTiff(outfile.getAbsolutePath() + ".tif");
 			}
 
 			if (addTilesAsRois) {

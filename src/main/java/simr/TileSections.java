@@ -42,7 +42,10 @@ public class TileSections {
         HashMap<Integer, String> restiles = new HashMap<>();
 
         for (int i : tiles) {
-            String sfile = tileImages.get(i).get(section);
+            String sfile = null;
+            if (tileImages.containsKey(i)) {
+                sfile = tileImages.get(i).get(section);
+            }
             if (sfile != null){
                 restiles.put(i, sfile);
             }

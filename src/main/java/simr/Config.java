@@ -12,6 +12,8 @@ public class Config {
     HashMap<Integer, Float[]> offsetMap;
     int zstart;
     int zstop;
+    int nx;
+    int ny;
 
     public Config(String configfile)
             throws IOException
@@ -38,6 +40,17 @@ public class Config {
                 zstop = Integer.parseInt(v[1]);
                 continue;
             }
+
+            if (line.startsWith("nx")) {
+                String[] v = line.split("=");
+                nx = Integer.parseInt(v[1]);
+            }
+
+            if (line.startsWith("ny")) {
+                String[] v = line.split("=");
+                ny = Integer.parseInt(v[1]);
+            }
+
             if (line.startsWith("offsets=")) {
                 isOffset = !isOffset;
                 continue;
